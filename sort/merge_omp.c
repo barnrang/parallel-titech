@@ -7,19 +7,29 @@ long time_diff_us(struct timeval st, struct timeval et)
   return (et.tv_sec-st.tv_sec)*1000000+(et.tv_usec-st.tv_usec);
 }
 
-void merge_sort(double* data, double* output, int s, int e, int thresh){
+void merge_sort(double* data, double* output, int s, int e, int thresh)
+{
+    // Do nothing
     if ((e - s) == 0) return;
+    // Split the mid
     int mid = (e + s) / 2;
-    if ((e - s) > thresh){
+
+    // If too "small", serialize
+    if ((e - s) > thresh)
+    {
         #pragma omp task
         {merge_sort(data, output, mid+1, e, thresh);}
         #pragma omp task
         {merge_sort(data, output, s, mid, thresh);}
         #pragma omp taskwait
-    } else {
+    } 
+    else 
+    {
         merge_sort(data, output, mid+1, e, thresh);
         merge_sort(data, output, s, mid, thresh);
     }
+
+    // Merge part
     int p1 = s, p2 = mid+1;
     int p = s;
     while ((p1 <= mid) || (p2 <= e))
@@ -39,8 +49,8 @@ void merge_sort(double* data, double* output, int s, int e, int thresh){
         }
         p++;
     }
-    // #pragma omp for
-    for (int i = s; i <= e; i++) {data[i] = output[i];}
+    
+    for (int i = s; i <= e; i++) data[i] = output[i];
 }
 
 int init(double *data, int n)

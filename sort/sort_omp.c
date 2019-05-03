@@ -95,7 +95,6 @@ int sort(double *data, int s, int e, int thresh)
       sort(data, s, i, thresh); /* sort data[s] ... data[i-1] */
       sort(data, i, e, thresh); /* sort data[i] ... data[e-1] */
     }
-  
 
   return 0;
 }
