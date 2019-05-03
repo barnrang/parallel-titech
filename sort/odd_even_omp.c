@@ -37,11 +37,10 @@ void odd_even_sort(double *data, int n, int num_threads)
 {
     float tmp = 0;
     int i, j;
-    int ex = 1;
+    int ex = 0;
 
-    while(ex!=0)
+    for(i = 0; i < (n/2+1); i++)
     {
-        ex = 0;
         #pragma omp parallel num_threads(num_threads) private(tmp,j) shared(data)
         {
             #pragma omp for 
@@ -52,7 +51,6 @@ void odd_even_sort(double *data, int n, int num_threads)
                     tmp = data[j];
                     data[j] = data[j+1];
                     data[j+1] = tmp;
-                    ex++;
                 }
             }
         
@@ -64,7 +62,6 @@ void odd_even_sort(double *data, int n, int num_threads)
                     tmp = data[j];
                     data[j] = data[j+1];
                     data[j+1] = tmp;
-                    ex++;
                 }
             }
 	        
