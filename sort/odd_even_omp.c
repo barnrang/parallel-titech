@@ -2,12 +2,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-// void swap_val(float &a, float &b) {
-//     float tmp = a;
-//     a = b;
-//     b = tmp;
-// }
-
 long time_diff_us(struct timeval st, struct timeval et)
 {
   return (et.tv_sec-st.tv_sec)*1000000+(et.tv_usec-st.tv_usec);
@@ -76,37 +70,6 @@ void odd_even_sort(double *data, int n, int num_threads)
 	        }
         }
     }
-
-    // while (ex1){
-    //     ex0 = 0;
-    //     ex1 = 0;
-    //     #pragma omp parallel num_threads(num_threads) shared(data) private(j, tmp)
-    //     {
-    //         #pragma omp for 
-    //         for(j = 0; j < n-1; j = j+2){
-    //             //printf("%d 0\n",count);
-    //             if(data[j] > data[j+1]) {
-    //                 tmp = data[j];
-    //                 data[j] = data[j+1];
-    //                 data[j+1] = tmp;
-    //                 ex0 = 1;
-    //             }
-    //         }
-    //         if (ex0){
-    //             #pragma omp for 
-    //             for(j = 1; j < n-1; j = j+2){
-    //                 //printf("%d 1\n",count);
-    //                 if(data[j] > data[j+1]) {
-    //                     tmp = data[j];
-    //                     data[j] = data[j+1];
-    //                     data[j+1] = tmp;
-    //                     ex1 = 1;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     count++;
-    // }
 }
 
 int main(int argc, char *argv[])
