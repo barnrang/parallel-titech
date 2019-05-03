@@ -1,5 +1,5 @@
-CC = gcc-8
-CFLAGS = -g -fopenmp
+CC = gcc
+CFLAGS = -g -fopenmp -std=c99
 LDFLAGS = -fopenmp
 LIBS = 
 
