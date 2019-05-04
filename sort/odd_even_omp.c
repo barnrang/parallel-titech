@@ -85,7 +85,10 @@ int main(int argc, char *argv[])
 
   data = malloc(sizeof(double)*n);
 
-  for (i = 0; i < 3; i++) {
+  int T = 10;
+  long time_sum = 0;
+
+  for (i = 0; i < T+1; i++) {
     struct timeval st;
     struct timeval et;
     long us;
@@ -95,14 +98,18 @@ int main(int argc, char *argv[])
     gettimeofday(&st, NULL); /* get start time */
     odd_even_sort(data, n, num_threads);
     gettimeofday(&et, NULL); /* get start time */
-    us = time_diff_us(st, et);
+    if (i != 0){
+      us = time_diff_us(st, et);
+      time_sum += us;
 
-    printf("sorting %d data took %ld us\n",
-	   n, us);
-
+      printf("sorting %d data took %ld us\n",
+	    n, us);
+    }
     check(data, n);
     /*print(data, n);*/
   }
+
+  printf("Average time took %ld us\n", time_sum / T);
 
   free(data);
 
