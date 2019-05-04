@@ -100,7 +100,10 @@ int main(int argc, char *argv[])
   data = malloc(sizeof(double)*n);
   output = malloc(sizeof(double)*n);
 
-  for (i = 0; i < 3; i++) {
+  long time_sum = 0;
+  int T = 10;
+
+  for (i = 0; i < T+1; i++) {
     struct timeval st;
     struct timeval et;
     long us;
@@ -117,14 +120,21 @@ int main(int argc, char *argv[])
       }
     }
     gettimeofday(&et, NULL); /* get start time */
-    us = time_diff_us(st, et);
 
-    printf("sorting %d data took %ld us\n",
-	   n, us);
+    if (i != 0){
+      us = time_diff_us(st, et);
+      time_sum += us;
 
-    check(output, n);
+      printf("sorting %d data took %ld us\n",
+	    n, us);
+    }
+    
+
+    check(data, n);
     /*print(data, n);*/
   }
+
+  printf("Average time took %ld\n", time_sum / T);
 
   free(data);
 

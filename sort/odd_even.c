@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
     /*print(data, n);*/
   }
 
-  printf("Average time took %ld us\n", time_sum / T);
+  printf("Average time took %ld\n", time_sum / T);
 
   free(data);
 
