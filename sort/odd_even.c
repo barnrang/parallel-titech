@@ -46,30 +46,26 @@ void odd_even_sort(double *data, int n, int num_threads)
     int i, j;
     int count = 0;
 
-    for(i=0;i<n;i++)
-    {   
-        if(i%2==0)
+    for(i = 0; i < (n/2+1); i++)
+    {    
+        for(j = 0; j < n-1; j += 2)
         {
-            for(j=0;j<n-1;j+=2)
+            if(data[j] > data[j+1])
             {
-                if(data[j]> data[j+1])
-                {
-                    tmp = data[j];
-                    data[j] = data[j+1];
-                    data[j+1] = tmp;
-                }
+                tmp = data[j];
+                data[j] = data[j+1];
+                data[j+1] = tmp;
             }
         }
-        else
+    
+        
+        for(j = 1; j < n-1; j += 2)
         {
-            for(j = 1; j < n-1; j += 2)
+            if(data[j] > data[j+1])
             {
-                if(data[j]> data[j+1])
-                {
-                    tmp = data[j];
-                    data[j] = data[j+1];
-                    data[j+1] = tmp;
-                }
+                tmp = data[j];
+                data[j] = data[j+1];
+                data[j+1] = tmp;
             }
         }
     }
