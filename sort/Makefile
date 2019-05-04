@@ -21,7 +21,7 @@ OE_OBJS = $(OE).o
 OE_P = odd_even_omp
 OE_P_OBJS = $(OE_P).o
 
-all: $(APP) $(APP_P) $(MERGE) $(MERGE_P) $(OE_P)
+all: $(APP) $(APP_P) $(MERGE) $(MERGE_P) $(OE_P) $(OE)
 
 $(OE): $(OE_OBJS)
 	$(CC) $^ $(LIBS) -o $@ $(LDFLAGS)
