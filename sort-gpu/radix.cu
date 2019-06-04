@@ -95,8 +95,19 @@ void  findMax(int* arr, int* collectMax, int N)
     
     }
 
-__global__ void  scanSB(int* arr, 
+__global__ void  markArr(int* arr, 
     int *collectScan,
+    int pos,
+    int N,
+    int compare) 
+{
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N){
+        collectScan[idx] = (arr[idx] & pos) == compare;
+    } 
+}
+
+__global__ void  scanSB(int *collectScan,
     int *collectSumScan,
     int *sumBlock,
     int pos,
@@ -108,9 +119,7 @@ __global__ void  scanSB(int* arr,
     __shared__ int s_inputValsTMP[FIND_MAX_THREADS];
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx < N){
-        s_inputVals[threadIdx.x] = (arr[idx] & pos) == compare;
-        // printf("%d ", s_inputVals[threadIdx.x]);
-        collectScan[idx] = s_inputVals[threadIdx.x];
+        s_inputVals[threadIdx.x] = collectScan[idx];
     } else s_inputVals[threadIdx.x] = 0;
     __syncthreads();
     
@@ -272,6 +281,22 @@ int main(int argc, char *argv[]) {
     cudaMallocManaged(&collectMax, sizeof(int) * numMaxBlock);
     cudaMallocManaged(&arbitary, sizeof(int) * numMaxBlock);
 
+    /* Calculate number of step for scanning*/
+    int cur = N;
+    int scan_step = 0;
+    while (cur > 1) {
+        cur = (cur + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS; 
+        scan_step++;
+    }
+    int* tmp_scan[scan_step];
+
+    cur = N;
+    scan_step = 0;
+    for (int i = 0; i < scan_step - 1; i++){
+        cur = (cur + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS; 
+        checkCudaErrors(cudaMallocManaged(&tmp_scan[i], sizeof(int) * (cur + 1)));
+    } 
+
     /* Search for Maximum */
     gettimeofday(&st, NULL);
 
@@ -283,12 +308,12 @@ int main(int argc, char *argv[]) {
     cudaDeviceSynchronize();
     // print_array(collectMax, numMaxBlock);
     int num_groups = numMaxBlock;
-    while (num_groups > FIND_MAX_THREADS) {
-        num_groups = (num_groups + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
-        findMax<<<num_groups, FIND_MAX_THREADS>>>(collectMax, arbitary, num_groups);
-        cudaDeviceSynchronize();
-        checkCudaErrors(cudaMemcpy(collectMax, arbitary, sizeof(int) * num_groups, cudaMemcpyDeviceToDevice));
-    }
+    // while (num_groups > FIND_MAX_THREADS) {
+    //     num_groups = (num_groups + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+    //     findMax<<<num_groups, FIND_MAX_THREADS>>>(collectMax, arbitary, num_groups);
+    //     cudaDeviceSynchronize();
+    //     checkCudaErrors(cudaMemcpy(collectMax, arbitary, sizeof(int) * num_groups, cudaMemcpyDeviceToDevice));
+    // }
     findMax<<<1, num_groups>>>(collectMax, collectMax, numMaxBlock);
     cudaDeviceSynchronize();
     // cudaDeviceSynchronize();
@@ -303,8 +328,14 @@ int main(int argc, char *argv[]) {
     int MSB = 1;
     for (int i = 0; i < step; i++) {
         // printf("hello");
-        scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(arr, 
+
+        markArr<<<numMaxBlock, FIND_MAX_THREADS>>>(arr, 
             collectScan,
+            MSB,
+            N,
+            0) ;
+
+        scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(collectScan,
             collectSumScan,
             sumBlock,
             MSB,
@@ -333,8 +364,12 @@ int main(int argc, char *argv[]) {
         cudaDeviceSynchronize(); //checkCudaErrors(cudaGetLastError());
 
         int offset = sumBlock[numMaxBlock];
-        scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(arr, 
+        markArr<<<numMaxBlock, FIND_MAX_THREADS>>>(arr, 
             collectScan,
+            MSB,
+            N,
+            MSB) ;
+        scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(collectScan,
             collectSumScan,
             sumBlock,
             MSB,

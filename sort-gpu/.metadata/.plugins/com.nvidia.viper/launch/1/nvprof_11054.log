@@ -1,0 +1,2 @@
+==11054== NVPROF is profiling process 11054, command: /home2/napat/Desktop/work/github/parallel-titech/sort-gpu/radix_cuda 100000000
+==11054== Generated result file: /home2/napat/Desktop/work/github/parallel-titech/sort-gpu/.metadata/.plugins/com.nvidia.viper/launch/1/api_11054.log
