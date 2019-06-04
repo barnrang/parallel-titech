@@ -268,29 +268,34 @@ int main(int argc, char *argv[]) {
     checkCudaErrors(cudaMallocManaged(&collectScan, sizeof(int) * N));
     checkCudaErrors(cudaMallocManaged(&interVals, sizeof(int) * N));
     checkCudaErrors(cudaMallocManaged(&sumBlock, sizeof(int) * (numMaxBlock+1)));
-    int* collectMax, arbitary;
+    int* collectMax, *arbitary;
     cudaMallocManaged(&collectMax, sizeof(int) * numMaxBlock);
     cudaMallocManaged(&arbitary, sizeof(int) * numMaxBlock);
 
     /* Search for Maximum */
     gettimeofday(&st, NULL);
-    
 
-    findMax<<<numMaxBlock, FIND_MAX_THREADS>>>(arr, collectMax, N);
-    cudaDeviceSynchronize();
     int MAX = 0;
     // for (int i = 0; i < numMaxBlock; i++){
     //     if (MAX < collectMax[i]) MAX = collectMax[i];
     // }
+    findMax <<<numMaxBlock,FIND_MAX_THREADS>>>(arr, collectMax, N);
+    cudaDeviceSynchronize();
+    // print_array(collectMax, numMaxBlock);
     int num_groups = numMaxBlock;
     while (num_groups > FIND_MAX_THREADS) {
-        findMax<<<num_groups, FIND_MAX_THREADS>>>(collectMax, arbitary, numMaxBlock);
-        num_groups = num_groups / FIND_MAX_THREADS;
+        num_groups = (num_groups + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+        findMax<<<num_groups, FIND_MAX_THREADS>>>(collectMax, arbitary, num_groups);
+        cudaDeviceSynchronize();
+        checkCudaErrors(cudaMemcpy(collectMax, arbitary, sizeof(int) * num_groups, cudaMemcpyDeviceToDevice));
     }
     findMax<<<1, num_groups>>>(collectMax, collectMax, numMaxBlock);
+    cudaDeviceSynchronize();
     // cudaDeviceSynchronize();
+
+    MAX = collectMax[0];
     
-    int step = (int)log2(MAX) + 1;
+    int step = (int)log2(MAX) + 2;
     printf("max = %d\n", MAX);
     printf("Max found\n");
 
@@ -367,7 +372,7 @@ int main(int argc, char *argv[]) {
 
     // printf("Finish lOOP");
     // print_array(arr, N);
-    // check_sort(arr, N);
+    check_sort(arr, N);
 
     checkCudaErrors(cudaFree(collectSumScan));
     checkCudaErrors(cudaFree(collectScan));
