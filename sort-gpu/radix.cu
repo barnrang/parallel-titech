@@ -95,58 +95,6 @@ void  findMax(int* arr, int* d_collectMax, int N)
       d_collectMax[blockIdx.x] = s_inputVals[0];
     
     }
-
-// __global__ void  scanSB(int* arr, 
-//     int *d_collectScan,
-//     int *d_collectSumScan,
-//     int *sumBlock,
-//     int pos,
-//     int N,
-//     int compare,
-//     int numMaxBlock) 
-// {
-//     __shared__ int s_inputVals[FIND_MAX_THREADS];
-//     __shared__ int s_inputValsTMP[FIND_MAX_THREADS];
-//     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-//     if (idx < N){
-//         s_inputVals[threadIdx.x] = (arr[idx] & pos) == compare;
-//         // printf("%d ", s_inputVals[threadIdx.x]);
-//         d_collectScan[idx] = s_inputVals[threadIdx.x];
-//     } else s_inputVals[threadIdx.x] = 0;
-//     __syncthreads();
-    
-//     int dist = 1;
-//     int count = 0;
-    
-    
-//     while (dist < FIND_MAX_THREADS) {
-//         if (count % 2 == 0){
-//         s_inputValsTMP[threadIdx.x] = s_inputVals[threadIdx.x];
-//         if (threadIdx.x >= dist) {
-//             s_inputValsTMP[threadIdx.x] += s_inputVals[threadIdx.x - dist];
-//         }
-//         }
-//         else {
-//         s_inputVals[threadIdx.x] = s_inputValsTMP[threadIdx.x];
-//         if (threadIdx.x >= dist) {
-//             s_inputVals[threadIdx.x] += s_inputValsTMP[threadIdx.x - dist];
-//         }
-//         }
-//         dist *= 2;
-//         count++;
-//         __syncthreads(); 
-//     }
-//     if (count % 2 == 0){
-        
-//         if(idx < N) d_collectSumScan[idx] = s_inputVals[threadIdx.x];
-//         sumBlock[blockIdx.x] = s_inputVals[FIND_MAX_THREADS - 1];
-//     } else {
-        
-//         if(idx < N) d_collectSumScan[idx] = s_inputValsTMP[threadIdx.x];
-//         sumBlock[blockIdx.x] = s_inputValsTMP[FIND_MAX_THREADS - 1];
-//     }
-    
-// }
     
 
 __global__ void  markArr(int* d_arr, 
@@ -164,9 +112,7 @@ __global__ void  markArr(int* d_arr,
 __global__ void  scanSB(int *d_collectScan,
     int *d_collectSumScan,
     int *d_sumBlock,
-    int pos,
     int N,
-    int compare,
     int numMaxBlock) 
 {
     __shared__ int s_inputVals[FIND_MAX_THREADS];
@@ -241,21 +187,20 @@ __global__ void  scanBlockSum(int *d_sumBlock,
         __syncthreads();
       }
       if (count % 2 == 0){
-        if(idx < numMaxBlock) d_sumBlock[idx + 1] = s_sumBlock[idx];
+        if(idx < numMaxBlock) d_sumBlock[idx] = s_sumBlock[idx];
         //else d_sumBlock[0] = 0;
       } else {
-        if(idx < numMaxBlock) d_sumBlock[idx + 1] = s_sumBlockTMP[idx];
+        if(idx < numMaxBlock) d_sumBlock[idx] = s_sumBlockTMP[idx];
         //else d_sumBlock[0] = 0;
       }
 
-      d_sumBlock[0] = 0;
+    //   d_sumBlock[0] = 0;
       
     }
 
 __global__ void  mergeScan(int* arr,
     int* d_collectScan,
     int* d_collectSumScan,
-    int* sumBlock,
     int* d_interVals,
     int offset,
     int N)
@@ -263,7 +208,7 @@ __global__ void  mergeScan(int* arr,
         int idx = threadIdx.x + blockIdx.x * blockDim.x;
         // if (idx == 0) printf("{%d} ", d_collectScan[idx]);
         if (d_collectScan[idx]==0 || idx >= N) return;
-        d_interVals[d_collectSumScan[idx] + sumBlock[blockIdx.x] + offset - 1] = arr[idx];
+        d_interVals[d_collectSumScan[idx] + offset - 1] = arr[idx];
     }
 
 
@@ -275,6 +220,7 @@ __global__ void  copyData(int* d_dst,
     if (idx >= N) return;
     d_dst[idx] = d_src[idx];
     }
+
 // __global__ void makeData(int* arr,
 //     int N,
 //     curandState* state) {
@@ -296,9 +242,81 @@ void print_array(int* arr, int N){
     }
 }
 
+void print_darray(int* d_arr, int N){
+    int *arr; cudaMallocHost(&arr, N * sizeof(int));
+    checkCudaErrors(cudaMemcpy(arr, d_arr, sizeof(int) * N, cudaMemcpyDeviceToHost));
+    print_array(arr, N);
+    cudaFree(arr);
+}
+
 long time_diff_us(struct timeval st, struct timeval et)
 {
   return (et.tv_sec-st.tv_sec)*1000000+(et.tv_usec-st.tv_usec);
+}
+
+
+__global__
+void mergeScanToIndex(
+    int* d_toCollect,
+    int* d_sumBlock,
+    int N
+)
+{
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx >= N) return;
+    if (blockIdx.x > 0) d_toCollect[idx] = d_sumBlock[blockIdx.x-1] + d_toCollect[idx];
+}
+
+void recursive_scan(
+    int* d_toScan,
+    int* d_toCollect,
+    int N
+)
+{   
+    int numBlockSize = (N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+    int* d_sumBlock;
+
+
+    // For debug
+    // printf("before N = %d ", N);
+    // print_darray(d_toScan, N);
+    
+    
+    checkCudaErrors(cudaMalloc(&d_sumBlock, sizeof(int) * (numBlockSize + 1)));
+    scanSB<<<numBlockSize, FIND_MAX_THREADS>>>(
+        d_toScan,
+        d_toCollect,
+        d_sumBlock,
+        N,
+        numBlockSize
+    );
+    
+    cudaDeviceSynchronize();
+    // printf("mid N = %d ", N);
+    // print_darray(d_sumBlock, numBlockSize+1);
+    // printf("scan N = %d\n", N);
+    if (numBlockSize > FIND_MAX_THREADS) {
+        recursive_scan(
+            d_sumBlock,
+            d_sumBlock,
+            numBlockSize
+        );
+        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, d_sumBlock, N);
+        cudaDeviceSynchronize();
+    } else {
+        scanBlockSum<<<1, FIND_MAX_THREADS>>>(d_sumBlock, numBlockSize);
+        // printf("mid2 N = %d ", N);
+        // print_darray(d_sumBlock, numBlockSize+1);
+        cudaDeviceSynchronize();
+        // printf("merge N = %d\n", N);
+        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, d_sumBlock, N);
+        cudaDeviceSynchronize();
+        // printf("merge2 N = %d\n", N);
+    }
+    checkCudaErrors(cudaFree(d_sumBlock));
+    // printf("After N = %d ", N);
+    // print_darray(d_toCollect, N);
+
 }
 
 void scanAndMerge(int* d_arr,
@@ -322,13 +340,19 @@ void scanAndMerge(int* d_arr,
         cudaDeviceSynchronize();
         // checkCudaErrors(cudaGetLastError());
 
-    scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(d_collectScan,
+    // printf("Mark!!\n");
+    recursive_scan(
+        d_collectScan,
         d_collectSumScan,
-        d_sumBlock,
-        MSB,
-        N,
-        compare, 
-        numMaxBlock);
+        N
+    );
+    // printf("Scan!!\n");
+
+    // scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(d_collectScan,
+    //     d_collectSumScan,
+    //     d_sumBlock,
+    //     N,
+    //     numMaxBlock);
 
     // scanSB<<<numMaxBlock,FIND_MAX_THREADS>>>(d_arr, 
     //     d_collectScan,
@@ -338,18 +362,17 @@ void scanAndMerge(int* d_arr,
     //     N,
     //     compare, 
     //     numMaxBlock);
-    cudaDeviceSynchronize(); //checkCudaErrors(cudaGetLastError());
+    // cudaDeviceSynchronize(); //checkCudaErrors(cudaGetLastError());
     // print_d_array(d_collectScan, N);
     // print_d_array(d_collectSumScan, N);
-    scanBlockSum<<<1, numMaxBlock>>>(d_sumBlock, numMaxBlock);
-    cudaDeviceSynchronize(); //checkCudaErrors(cudaGetLastError());
+    // scanBlockSum<<<1, numMaxBlock>>>(d_sumBlock, numMaxBlock);
+    // cudaDeviceSynchronize(); //checkCudaErrors(cudaGetLastError());
     // d_sumBlock[0] = 0;
     // checkCudaErrors(cudaMemset(d_sumBlock, 0, sizeof(int)));
     // printf("%d\n", offset);
     mergeScan<<<numMaxBlock, FIND_MAX_THREADS>>>(d_arr,
         d_collectScan,
         d_collectSumScan,
-        d_sumBlock,
         d_interVals,
         offset,
         N);
@@ -373,6 +396,7 @@ int main(int argc, char *argv[]) {
     int *d_arr, *arr;
     checkCudaErrors(cudaMallocHost(&arr, sizeof(int) * N));
     make_data(arr, N);
+    // print_array(arr, N);
 
     checkCudaErrors(cudaMalloc(&d_arr, sizeof(int) * N));
     checkCudaErrors(cudaMemcpy(d_arr, arr, sizeof(int) * N, cudaMemcpyHostToDevice));
@@ -446,8 +470,8 @@ int main(int argc, char *argv[]) {
                 0);
                 
                 // printf("hello2\n");
-            checkCudaErrors(cudaMemcpy(&offset, &d_sumBlock[numMaxBlock], sizeof(int), cudaMemcpyDeviceToHost));
-            printf("offset = %d\n", offset);
+            checkCudaErrors(cudaMemcpy(&offset, &d_collectSumScan[N-1], sizeof(int), cudaMemcpyDeviceToHost));
+            // printf("offset = %d\n", offset);
             // printf("hello3\n");
             scanAndMerge(d_arr,
                 d_collectScan,
@@ -472,9 +496,9 @@ int main(int argc, char *argv[]) {
                 0);
     
             // int offset = d_sumBlock[numMaxBlock];
-            checkCudaErrors(cudaMemcpy(&offset, &d_sumBlock[numMaxBlock], sizeof(int), cudaMemcpyDeviceToHost));
-
-            printf("offset = %d\n", offset);
+            // checkCudaErrors(cudaMemcpy(&offset, &d_sumBlock[numMaxBlock], sizeof(int), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(&offset, &d_collectSumScan[N-1], sizeof(int), cudaMemcpyDeviceToHost));
+            // printf("offset = %d\n", offset);
 
             scanAndMerge(d_interVals,
                 d_collectScan,
@@ -488,6 +512,12 @@ int main(int argc, char *argv[]) {
                 offset);
         }
         MSB *= 2;
+        // if (i % 2==0){
+        //     checkCudaErrors(cudaMemcpy(arr, d_interVals, sizeof(int) * N, cudaMemcpyDeviceToHost));
+        // } else {
+        //     checkCudaErrors(cudaMemcpy(arr, d_arr, sizeof(int) * N, cudaMemcpyDeviceToHost));
+        // }
+        // print_array(arr, N);
     }
 
     if (i % 2!=0){
@@ -505,6 +535,7 @@ int main(int argc, char *argv[]) {
     // printf("Finish lOOP");
     // print_array(arr, N);
     check_sort(arr, N);
+    // print_array(arr, N);
 
     checkCudaErrors(cudaFree(d_collectSumScan));
     checkCudaErrors(cudaFree(d_collectScan));
