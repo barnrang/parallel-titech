@@ -39,7 +39,7 @@ Sort Integer ranging from 0 - 255
 const int block_size = 1024;
 const int DIM = 32;
 const int MAX_THREADS_PER_BLOCK = 65535;
-const int FIND_MAX_THREADS = 1024; //allocate to shared memory
+const int FIND_MAX_THREADS = 16; //allocate to shared memory
 
 /* From stackoverflow */
 int rand_lim(int limit) {
@@ -270,11 +270,13 @@ void mergeScanToIndex(
 void recursive_scan(
     int* d_toScan,
     int* d_toCollect,
+    int** storage,
+    int i,
     int N
 )
 {   
     int numBlockSize = (N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
-    int* d_sumBlock;
+    // int* d_sumBlock;
 
 
     // For debug
@@ -282,11 +284,11 @@ void recursive_scan(
     // print_darray(d_toScan, N);
     
     
-    checkCudaErrors(cudaMalloc(&d_sumBlock, sizeof(int) * (numBlockSize + 1)));
+    // checkCudaErrors(cudaMalloc(&d_sumBlock, sizeof(int) * (numBlockSize + 1)));
     scanSB<<<numBlockSize, FIND_MAX_THREADS>>>(
         d_toScan,
         d_toCollect,
-        d_sumBlock,
+        storage[i],
         N,
         numBlockSize
     );
@@ -297,23 +299,25 @@ void recursive_scan(
     // printf("scan N = %d\n", N);
     if (numBlockSize > FIND_MAX_THREADS) {
         recursive_scan(
-            d_sumBlock,
-            d_sumBlock,
+            storage[i],
+            storage[i],
+            storage,
+            i+1,
             numBlockSize
         );
-        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, d_sumBlock, N);
+        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, storage[i], N);
         cudaDeviceSynchronize();
     } else {
-        scanBlockSum<<<1, FIND_MAX_THREADS>>>(d_sumBlock, numBlockSize);
+        scanBlockSum<<<1, FIND_MAX_THREADS>>>(storage[i], numBlockSize);
         // printf("mid2 N = %d ", N);
-        // print_darray(d_sumBlock, numBlockSize+1);
+        // print_darray(storage[i], numBlockSize+1);
         cudaDeviceSynchronize();
         // printf("merge N = %d\n", N);
-        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, d_sumBlock, N);
+        mergeScanToIndex<<<numBlockSize, FIND_MAX_THREADS>>>(d_toCollect, storage[i], N);
         cudaDeviceSynchronize();
         // printf("merge2 N = %d\n", N);
     }
-    checkCudaErrors(cudaFree(d_sumBlock));
+    // checkCudaErrors(cudaFree(storage[i]));
     // printf("After N = %d ", N);
     // print_darray(d_toCollect, N);
 
@@ -324,6 +328,7 @@ void scanAndMerge(int* d_arr,
     int* d_collectSumScan,
     int* d_sumBlock,
     int* d_interVals,
+    int** storage,
     int MSB,
     int N,
     int compare,
@@ -344,6 +349,8 @@ void scanAndMerge(int* d_arr,
     recursive_scan(
         d_collectScan,
         d_collectSumScan,
+        storage,
+        0,
         N
     );
     // printf("Scan!!\n");
@@ -392,6 +399,7 @@ int main(int argc, char *argv[]) {
         N = atol(argv[1]);
     }
 
+
     int numMaxBlock = (N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
     int *d_arr, *arr;
     checkCudaErrors(cudaMallocHost(&arr, sizeof(int) * N));
@@ -420,6 +428,20 @@ int main(int argc, char *argv[]) {
     int* d_collectMax, *d_arbitary;
     cudaMalloc(&d_collectMax, sizeof(int) * numMaxBlock);
     cudaMalloc(&d_arbitary, sizeof(int) * numMaxBlock);
+
+    int num_storage = 0;
+    int current_N = (N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+    while(current_N > FIND_MAX_THREADS){
+        num_storage++;
+        current_N = (current_N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+    }
+
+    int* storage[num_storage];
+    current_N = N;
+    for (int i = 0; i < num_storage+1; i++) {
+        current_N = (current_N + FIND_MAX_THREADS - 1) / FIND_MAX_THREADS;
+        checkCudaErrors(cudaMalloc(&storage[i], sizeof(int) * (current_N + 1)));
+    }
 
     /* Search for Maximum */
     gettimeofday(&st, NULL);
@@ -463,6 +485,7 @@ int main(int argc, char *argv[]) {
                 d_collectSumScan,
                 d_sumBlock,
                 d_interVals,
+                storage,
                 MSB,
                 N,
                 0,
@@ -478,6 +501,7 @@ int main(int argc, char *argv[]) {
                 d_collectSumScan,
                 d_sumBlock,
                 d_interVals,
+                storage,
                 MSB,
                 N,
                 MSB,
@@ -489,6 +513,7 @@ int main(int argc, char *argv[]) {
                 d_collectSumScan,
                 d_sumBlock,
                 d_arr,
+                storage,
                 MSB,
                 N,
                 0,
@@ -505,6 +530,7 @@ int main(int argc, char *argv[]) {
                 d_collectSumScan,
                 d_sumBlock,
                 d_arr,
+                storage,
                 MSB,
                 N,
                 MSB,
